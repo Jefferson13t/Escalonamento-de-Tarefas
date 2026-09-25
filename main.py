@@ -1,6 +1,6 @@
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
-
+import argparse
 import numpy as np
 from scipy.io import savemat, loadmat
 from classes.tarefa import Tarefa
@@ -405,13 +405,23 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
 
 
 def main() -> None:
-
     # Buscar dados de um arquivo .mat
     INPUT_DIR = 'inputs'
     INPUT_FILE = 'i5x25.mat'
     INPUT_PATH = f"{INPUT_DIR}/{INPUT_FILE}"
 
-    mat = loadmat(INPUT_PATH)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_file")
+    parser.add_argument("solution_file")
+    args = parser.parse_args()
+
+    input_path = args.input_file or INPUT_PATH # Fallback for passado o nome do arquivo
+
+    
+    mat = loadmat(input_path)
+
+    if not mat:
+        raise ValueError("Arquivo de input não encontrado")
 
     pt = mat['PT'] # Tempo que a máquina j leva para processar a tarefa i. Indice [j][i]
     we = mat['WE'][0] # Penalidade por atraso da tarefa j. Indice [j]
@@ -422,11 +432,13 @@ def main() -> None:
 
     # Salvar solução em um arquivo .mat
     OUTPUT_DIR = 'outputs'
-    OUTPUT_FILE = 'solucao_i5x25_fo1'
-    OUTPUT_PATH = f"{OUTPUT_DIR}/{OUTPUT_FILE}"
+    OUTPUT_FILE = INPUT_FILE
+    OUTPUT_PATH = f"{OUTPUT_DIR}/{OUTPUT_FILE}.mat"
+
+    solution_file_path = args.solution_file or OUTPUT_PATH # Fallback for passado o nome do arquivo
 
     salvar_solucao_mat(
-        f"{OUTPUT_PATH}.mat",
+        solution_file_path,
         tarefas_por_maquina,
         pt,
         we,
