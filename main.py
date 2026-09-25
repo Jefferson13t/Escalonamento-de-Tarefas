@@ -64,7 +64,7 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     """
         Instancia um solver, cria as restrições e resolve um problema
 
-        Inputs:
+        Args:
             pt: Tempo que a máquina j leva para processar a tarefa i. Indice [j][i]
             we: Penalidade por atraso da tarefa j. Indice [j]
             dd: Due Date. Número escalar
