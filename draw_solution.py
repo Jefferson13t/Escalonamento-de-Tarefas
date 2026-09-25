@@ -1,0 +1,158 @@
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+import numpy as np
+from scipy.io import  loadmat
+from classes.tarefa import Tarefa
+
+
+def ler_solucao_mat(
+    caminho: str
+) -> list[list[Tarefa]]:
+    """
+    Lê uma solução .mat e retorna:
+
+        list[list[Tarefa]]
+
+    A ordem das tarefas dentro de cada máquina é preservada.
+    """
+
+    dados = loadmat(caminho)
+
+    PT = np.asarray(dados["PT"])
+    WE = np.asarray(dados["WE"]).flatten()
+    DD = float(np.asarray(dados["DD"]).squeeze())
+
+    SEQ = np.asarray(dados["SEQ"])
+
+    tarefas_por_maquina = []
+
+    for i in range(SEQ.shape[0]):
+
+        tarefas_maquina = []
+
+        for pos in range(SEQ.shape[1]):
+
+            indice = int(SEQ[i, pos])
+
+            # 0 representa posição vazia
+            if indice == 0:
+                continue
+
+            # O arquivo usa T1, T2, ...
+            # Python usa índice 0, 1, ...
+            j = indice - 1
+
+            tarefa = Tarefa(
+                nome=f"T{indice}",
+                w=int(PT[i, j]),
+                peso=int(WE[j])
+            )
+
+            tarefas_maquina.append(tarefa)
+
+        tarefas_por_maquina.append(tarefas_maquina)
+
+    return tarefas_por_maquina, DD
+
+
+fig, ax = plt.subplots()
+
+
+from matplotlib.colors import LinearSegmentedColormap, to_hex
+
+def retornar_cor_por_peso(peso: int) -> str:
+
+    gradiente = LinearSegmentedColormap.from_list(
+        "verde_vermelho",
+        ["#00FFA2", "#FACC15", "#EF4444"]
+    )
+
+    proporcao = (peso - 1) / 9
+    return to_hex(gradiente(proporcao))
+
+def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output_img_path: str ) -> None:
+
+    ALTURA = 2
+
+    espaco_horizontal_maximo = 0
+    espaco_vertical_usado = 0
+
+    for idx, maquina in enumerate(tarefas_por_maquina):
+
+        espaco_usado = 0
+
+        altura_maquina = idx * ALTURA
+        for tarefa in maquina:
+
+            retangulo = Rectangle(
+                (espaco_usado, altura_maquina),  # posição
+                tarefa.w, ALTURA,    # largura e altura
+                facecolor=retornar_cor_por_peso(tarefa.peso),
+                edgecolor="#ffffff"
+            )
+            ax.add_patch(retangulo)
+
+            centro_texto_h = espaco_usado + tarefa.w / 2
+            centro_texto_v = ALTURA / 2 + altura_maquina
+            ax.text(
+                centro_texto_h, centro_texto_v,
+                tarefa.nome,
+                color="black",
+                fontsize=12,
+                ha="center",
+                va="center"
+            )
+
+            espaco_usado += tarefa.w
+            if espaco_horizontal_maximo < espaco_usado:
+                espaco_horizontal_maximo = espaco_usado
+
+    espaco_vertical_usado = len(tarefas_por_maquina) * ALTURA
+
+    ax.set_xlim(0, espaco_horizontal_maximo + 1)
+    ax.set_ylim(0, espaco_vertical_usado)
+    ax.set_aspect("equal")
+
+    # Labels do eixo Y
+    ax.set_yticks([
+        ALTURA / 2 + i * ALTURA
+        for i in range(len(tarefas_por_maquina))
+    ])
+
+    ax.set_yticklabels([
+        f"M{i + 1}"
+        for i in range(len(tarefas_por_maquina))
+    ])
+
+    ax.axvline(
+        x=due_date,
+        color="black",
+        linewidth=2,
+        linestyle="--"
+    )
+    ax.text(
+        due_date, -1,
+        "Due Date",
+        color="black",
+        fontsize=9,
+        ha="center",
+        va="center",
+    )
+
+    plt.savefig(
+        output_img_path,
+        dpi=300,
+        bbox_inches="tight"
+    )
+
+    plt.show()
+
+
+OUTPUT_DIR = 'outputs'
+OUTPUT_FILE = 'solucao_i5x25_fo1'
+OUTPUT_PATH = f"{OUTPUT_DIR}/{OUTPUT_FILE}"
+
+tarefas_por_maquina, due_date = ler_solucao_mat(f"{OUTPUT_PATH}.mat")
+
+
+draw_sequence(tarefas_por_maquina, due_date, f"{OUTPUT_PATH}.png")
