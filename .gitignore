@@ -1,2 +1,4 @@
+*/__pycache__
+
 inputs/*.mat
 outputs/*.mat
