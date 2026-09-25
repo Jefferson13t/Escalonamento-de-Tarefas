@@ -3,6 +3,7 @@ from matplotlib.patches import Rectangle
 import numpy as np
 from scipy.io import  loadmat
 from classes.tarefa import Tarefa
+import argparse
 
 
 def ler_solucao_mat(
@@ -17,6 +18,10 @@ def ler_solucao_mat(
     """
 
     dados = loadmat(caminho)
+
+
+    if not dados:
+        raise ValueError(f"Arquivo de solução não encontrado em {caminho}")
 
     PT = np.asarray(dados["PT"])
     WE = np.asarray(dados["WE"]).flatten()
@@ -70,7 +75,7 @@ def retornar_cor_por_peso(peso: int) -> str:
     proporcao = (peso - 1) / 9
     return to_hex(gradiente(proporcao))
 
-def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output_img_path: str ) -> None:
+def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output_img_path: str) -> None:
 
     ALTURA = 2
 
@@ -148,11 +153,24 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
     plt.show()
 
 
-OUTPUT_DIR = 'outputs'
-OUTPUT_FILE = 'solucao_i5x25_fo1'
-OUTPUT_PATH = f"{OUTPUT_DIR}/{OUTPUT_FILE}"
+def draw() -> None:
+    OUTPUT_DIR = 'outputs'
+    OUTPUT_FILE = 'solucao_i5x25'
+    OUTPUT_PATH = f"{OUTPUT_DIR}/{OUTPUT_FILE}"
 
-tarefas_por_maquina, due_date = ler_solucao_mat(f"{OUTPUT_PATH}.mat")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("solution_file")
+    parser.add_argument("solution_img_file", nargs="?")
 
+    args = parser.parse_args()
 
-draw_sequence(tarefas_por_maquina, due_date, f"{OUTPUT_PATH}.png")
+    solution_file_path = args.solution_file or f"{OUTPUT_PATH}.mat" # Fallback for passado o nome do arquivo
+
+    solution_img_file = args.solution_img_file or f"{solution_file_path.split(sep='.')[0]}.png" # Fallback for passado o nome do arquivo
+
+    tarefas_por_maquina, due_date = ler_solucao_mat(solution_file_path)
+
+    draw_sequence(tarefas_por_maquina, due_date, solution_img_file)
+
+if __name__ == "__main__":
+    draw()
