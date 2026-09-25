@@ -207,10 +207,8 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
 
     model.c = pyo.ConstraintList()
 
-    # ------------------------------------------------------------
     # 1. Alocação única
     # Cada tarefa deve ser atribuída a exatamente uma máquina.
-    # ------------------------------------------------------------
 
     for j in range(J):
         model.c.add(
@@ -221,13 +219,7 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         )
 
 
-    # ------------------------------------------------------------
     # 2. Tempo de conclusão
-    #
-    # C_j = S_j + tempo de processamento da tarefa j
-    #
-    # O tempo de processamento depende da máquina escolhida.
-    # ------------------------------------------------------------
 
     for j in range(J):
         model.c.add(
@@ -239,12 +231,8 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
             )
         )
 
-
-    # ------------------------------------------------------------
     # 3. Makespan
-    #
     # Cmax >= C_j para toda tarefa j
-    # ------------------------------------------------------------
 
     for j in range(J):
         model.c.add(
@@ -252,15 +240,11 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         )
 
 
-    # ------------------------------------------------------------
     # 4. Atraso
-    #
     # T_j >= C_j - d_j
     # T_j >= 0
-    #
     # Como T_j já é NonNegativeIntegers, a segunda restrição
     # é implicitamente garantida, mas pode ser mantida.
-    # ------------------------------------------------------------
 
     for j in range(J):
         model.c.add(
@@ -272,14 +256,10 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         )
 
 
-    # ------------------------------------------------------------
     # 5. Ligação entre alocação e sequenciamento
-    #
     # Para cada par j,k em uma máquina i:
-    #
     # y_ijk = 1 -> j precede k
     # y_ijk = 0 -> k precede j, quando ambas estão na máquina i
-    # ------------------------------------------------------------
 
     for i in range(M):
         for j in range(J):
@@ -295,40 +275,47 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
                     y(i, j, k) <= x(i, k)
                 )
 
+                model.c.add(
+                    y(i, j, k) >= x(i, j) + x(i, k) - 1
+                )
 
-    # ------------------------------------------------------------
+
+
     # 6. Não sobreposição
-    #
     # Se j e k estão na mesma máquina:
-    #
+
     # y_ijk = 1:
     #     S_k >= C_j
-    #
     # y_ijk = 0:
     #     S_j >= C_k
-    #
     # Big-M / Big-H
-    # ------------------------------------------------------------
 
     for i in range(M):
         for j in range(J):
             for k in range(j + 1, J):
 
+                # j e k estão na mesma máquina i
+                # e y = 1 => j antes de k
                 model.c.add(
                     S(k) >=
-                    C(j) - H * (1 - y(i, j, k))
+                    C(j)
+                    - H * (1 - y(i, j, k))
+                    - H * (1 - x(i, j))
+                    - H * (1 - x(i, k))
                 )
 
+                # y = 0 => k antes de j
                 model.c.add(
                     S(j) >=
-                    C(k) - H * y(i, j, k)
+                    C(k)
+                    - H * y(i, j, k)
+                    - H * (1 - x(i, j))
+                    - H * (1 - x(i, k))
                 )
 
 
-    # ------------------------------------------------------------
-    # 7. Horizonte de planejamento
-    # ------------------------------------------------------------
 
+    # 7. Horizonte de planejamento
     for j in range(J):
 
         model.c.add(
@@ -349,26 +336,27 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
 
 
     # Resolver
-    result = opt.solve(model)
+    result = opt.solve(model, tee=True)
 
+    print("Otimização completa.")
 
     # Resultados
     print("Cmax =", pyo.value(model.Cmax))
 
-    for j in range(J):
-        print(
-            f"Tarefa {j}: "
-            f"S={pyo.value(S(j))}, "
-            f"C={pyo.value(C(j))}, "
-            f"T={pyo.value(T(j))}"
-        )
+    # for j in range(J):
+    #     print(
+    #         f"Tarefa {j}: "
+    #         f"S={pyo.value(S(j))}, "
+    #         f"C={pyo.value(C(j))}, "
+    #         f"T={pyo.value(T(j))}"
+    #     )
 
-    for i in range(M):
-        for j in range(J):
-            if pyo.value(x(i, j)) > 0.5:
-                print(
-                    f"Tarefa {j} -> Máquina {i}"
-                )
+    # for i in range(M):
+    #     for j in range(J):
+    #         if pyo.value(x(i, j)) > 0.5:
+    #             print(
+    #                 f"Tarefa {j} -> Máquina {i}"
+    #             )
 
     # Saída: tarefas por máquina
     tarefas_por_maquina = []
