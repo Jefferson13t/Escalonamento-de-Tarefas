@@ -114,6 +114,9 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
 
     espaco_vertical_usado = len(tarefas_por_maquina) * ALTURA
 
+
+    espaco_horizontal_maximo = max(espaco_horizontal_maximo, due_date)
+
     ax.set_xlim(0, espaco_horizontal_maximo + 1)
     ax.set_ylim(0, espaco_vertical_usado)
     ax.set_aspect("equal")
