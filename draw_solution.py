@@ -113,7 +113,7 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
                 centro_texto_h, centro_texto_v,
                 tarefa.nome,
                 color="black",
-                fontsize=12,
+                fontsize=8,
                 ha="center",
                 va="center"
             )
