@@ -5,7 +5,6 @@ from scipy.io import  loadmat
 from classes.tarefa import Tarefa
 import argparse
 
-
 def ler_solucao_mat(
     caminho: str
 ) -> list[list[Tarefa]]:
@@ -62,18 +61,22 @@ def ler_solucao_mat(
 
 fig, ax = plt.subplots()
 
+import math
 
-from matplotlib.colors import LinearSegmentedColormap, to_hex
+def retornar_cor_por_peso(porcentagem: float) -> str:
 
-def retornar_cor_por_peso(peso: int) -> str:
+    cores = [
+            "#00FFA2",
+            "#22C55E",
+            "#84CC16",
+            "#EAB308",
+            "#FACC15",
+            "#F97316",
+            "#EF4444",
+            "#DC2626",
+        ]
 
-    gradiente = LinearSegmentedColormap.from_list(
-        "verde_vermelho",
-        ["#00FFA2", "#FACC15", "#EF4444"]
-    )
-
-    proporcao = (peso - 1) / 9
-    return to_hex(gradiente(proporcao))
+    return cores[math.floor(porcentagem * (len(cores) - 1))]
 
 def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output_img_path: str) -> None:
 
@@ -81,6 +84,12 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
 
     espaco_horizontal_maximo = 0
     espaco_vertical_usado = 0
+
+    penalidade_maxima = max(
+        tarefa.peso
+        for maquina in tarefas_por_maquina
+        for tarefa in maquina
+    )
 
     for idx, maquina in enumerate(tarefas_por_maquina):
 
@@ -92,7 +101,7 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
             retangulo = Rectangle(
                 (espaco_usado, altura_maquina),  # posição
                 tarefa.w, ALTURA,    # largura e altura
-                facecolor=retornar_cor_por_peso(tarefa.peso),
+                facecolor=retornar_cor_por_peso(tarefa.peso / penalidade_maxima),
                 edgecolor="#ffffff"
             )
             ax.add_patch(retangulo)
@@ -113,7 +122,6 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
                 espaco_horizontal_maximo = espaco_usado
 
     espaco_vertical_usado = len(tarefas_por_maquina) * ALTURA
-
 
     espaco_horizontal_maximo = max(espaco_horizontal_maximo, due_date)
 
