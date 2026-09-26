@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 import numpy as np
 from scipy.io import  loadmat
 from classes.tarefa import Tarefa
@@ -63,9 +64,7 @@ fig, ax = plt.subplots()
 
 import math
 
-def retornar_cor_por_peso(porcentagem: float) -> str:
-
-    cores = [
+CORES_PENALIDADES = [
             "#00FFA2",
             "#22C55E",
             "#84CC16",
@@ -76,7 +75,9 @@ def retornar_cor_por_peso(porcentagem: float) -> str:
             "#DC2626",
         ]
 
-    return cores[math.floor(porcentagem * (len(cores) - 1))]
+def retornar_cor_por_peso(porcentagem: float) -> str:
+
+    return CORES_PENALIDADES[math.floor(porcentagem * (len(CORES_PENALIDADES) - 1))]
 
 def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output_img_path: str) -> None:
 
@@ -121,12 +122,27 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
             if espaco_horizontal_maximo < espaco_usado:
                 espaco_horizontal_maximo = espaco_usado
 
+
+
     espaco_vertical_usado = len(tarefas_por_maquina) * ALTURA
 
     espaco_horizontal_maximo = max(espaco_horizontal_maximo, due_date)
 
+    cmap = LinearSegmentedColormap.from_list(
+        "penalidade",
+        CORES_PENALIDADES,
+        N=256,
+    )
+    norm = Normalize(vmin=0, vmax=penalidade_maxima)
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+
+    cbar = plt.colorbar(sm, ax=ax, pad=0.02, fraction=0.03)
+    cbar.set_label("Penalidade", fontsize=8)
+    cbar.ax.tick_params(labelsize=6)
+
     ax.set_xlim(0, espaco_horizontal_maximo + 1)
-    ax.set_ylim(0, espaco_vertical_usado)
+    ax.set_ylim(0, espaco_vertical_usado + ALTURA * 2)
     ax.set_aspect("equal")
 
     # Labels do eixo Y
