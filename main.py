@@ -65,7 +65,7 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         Instancia um solver, cria as restrições e resolve um problema
 
         Args:
-            pt: Tempo que a máquina j leva para processar a tarefa i. Indice [j][i]
+            pt: Tempo que a máquina i leva para processar a tarefa j
             we: Penalidade por atraso da tarefa j. Indice [j]
             dd: Due Date. Número escalar
         Outputs:
@@ -81,7 +81,7 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     H = 224 #max(sum([linha for linha in pt])) TODO: Inverter os indices
 
     # Conjuntos
-    # Numero de maquinas
+    # Numero de máquinas
     M = len(pt)
 
     # Numero de Tarefas
@@ -93,20 +93,16 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
 
     # x_ij = 1 se a tarefa j for atribuída à máquina i
     xij = [
-        f"x_{i}{j}"
+        (i, j)
         for i in range(M)
         for j in range(J)
     ]
 
-    model.x = pyo.Var(
-        xij,
-        within=pyo.Binary,
-    )
-
+    model.x = pyo.Var(xij, within=pyo.Binary)
 
     # y_ijk = 1 se a tarefa j preceder k na máquina i
     yijk = [
-        f"y_{i}{j}{k}"
+        (i, j, k)
         for i in range(M)
         for j in range(J)
         for k in range(j + 1, J)
@@ -117,36 +113,24 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         within=pyo.Binary,
     )
 
-
     # S_j = instante de início da tarefa j
-    Sj = [
-        f"S{j}"
-        for j in range(J)
-    ]
+    Sj = [j for j in range(J)]
 
     model.S = pyo.Var(
         Sj,
         within=pyo.NonNegativeIntegers,
     )
 
-
     # C_j = instante de conclusão da tarefa j
-    Cj = [
-        f"C{j}"
-        for j in range(J)
-    ]
+    Cj = [j for j in range(J)]
 
     model.C = pyo.Var(
         Cj,
         within=pyo.NonNegativeIntegers,
     )
 
-
     # T_j = atraso da tarefa j
-    Tj = [
-        f"T{j}"
-        for j in range(J)
-    ]
+    Tj = [j for j in range(J)]
 
     model.T = pyo.Var(
         Tj,
@@ -159,29 +143,6 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         within=pyo.NonNegativeIntegers,
     )
 
-
-    # Funções auxiliares para obter os nomes das variáveis
-
-    def x(i, j):
-        return model.x[f"x_{i}{j}"]
-
-
-    def y(i, j, k):
-        return model.y[f"y_{i}{j}{k}"]
-
-
-    def S(j):
-        return model.S[f"S{j}"]
-
-
-    def C(j):
-        return model.C[f"C{j}"]
-
-
-    def T(j):
-        return model.T[f"T{j}"]
-
-
     # Funções objetivo
 
     # Minimizar Cmax
@@ -192,13 +153,16 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     # Minimizar atraso ponderado
     def fo2(model):
         return pyo.quicksum(
-            we[j] * model.T[f"T{j}"]
+            we[j] * model.T[j]
             for j in range(J)
         )
 
+    def fo(model):
+        return fo1(model) + fo2(model)
+
     # Escolha da função objetivo
     model.o = pyo.Objective(
-        rule=fo1,
+        rule=fo,
         sense=pyo.minimize
     )
 
@@ -213,30 +177,28 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     for j in range(J):
         model.c.add(
             pyo.quicksum(
-                x(i, j)
+                model.x[i, j]
                 for i in range(M)
             ) == 1
         )
 
 
     # 2. Tempo de conclusão
-
     for j in range(J):
         model.c.add(
-            C(j) ==
-            S(j) +
+            model.C[j] ==
+            model.S[j] +
             pyo.quicksum(
-                pt[i][j] * x(i, j)
+                pt[i][j] * model.x[i, j]
                 for i in range(M)
             )
         )
 
     # 3. Makespan
     # Cmax >= C_j para toda tarefa j
-
     for j in range(J):
         model.c.add(
-            model.Cmax >= C(j)
+            model.Cmax >= model.C[j]
         )
 
 
@@ -245,14 +207,12 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     # T_j >= 0
     # Como T_j já é NonNegativeIntegers, a segunda restrição
     # é implicitamente garantida, mas pode ser mantida.
-
     for j in range(J):
         model.c.add(
-            T(j) >= C(j) - d
+            model.T[j] >= model.C[j] - d
         )
-
         model.c.add(
-            T(j) >= 0
+            model.T[j] >= 0
         )
 
 
@@ -268,15 +228,15 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
                 # Se j e k estão na máquina i, uma delas
                 # deve preceder a outra.
                 model.c.add(
-                    y(i, j, k) <= x(i, j)
+                    model.y[i, j, k] <= model.x[i, j]
                 )
 
                 model.c.add(
-                    y(i, j, k) <= x(i, k)
+                    model.y[i, j, k] <= model.x[i, j]
                 )
 
                 model.c.add(
-                    y(i, j, k) >= x(i, j) + x(i, k) - 1
+                    model.y[i, j, k] >= model.x[i, j] + model.x[i, j] - 1
                 )
 
 
@@ -297,20 +257,20 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
                 # j e k estão na mesma máquina i
                 # e y = 1 => j antes de k
                 model.c.add(
-                    S(k) >=
-                    C(j)
-                    - H * (1 - y(i, j, k))
-                    - H * (1 - x(i, j))
-                    - H * (1 - x(i, k))
+                    model.S[k] >=
+                    model.C[j]
+                    - H * (1 - model.y[i, j, k])
+                    - H * (1 - model.x[i, j])
+                    - H * (1 - model.x[i, k])
                 )
 
                 # y = 0 => k antes de j
                 model.c.add(
-                    S(j) >=
-                    C(k)
-                    - H * y(i, j, k)
-                    - H * (1 - x(i, j))
-                    - H * (1 - x(i, k))
+                    model.S[j] >=
+                    model.C[k]
+                    - H * model.y[i, j, k]
+                    - H * (1 - model.x[i, j])
+                    - H * (1 - model.x[i, k])
                 )
 
 
@@ -319,19 +279,19 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     for j in range(J):
 
         model.c.add(
-            S(j) >= 0
+            model.S[j] >= 0
         )
 
         model.c.add(
-            S(j) <= H
+            model.S[j] <= H
         )
 
         model.c.add(
-            C(j) >= 0
+            model.C[j] >= 0
         )
 
         model.c.add(
-            C(j) <= H
+            model.C[j] <= H
         )
 
 
@@ -346,14 +306,14 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     # for j in range(J):
     #     print(
     #         f"Tarefa {j}: "
-    #         f"S={pyo.value(S(j))}, "
-    #         f"C={pyo.value(C(j))}, "
-    #         f"T={pyo.value(T(j))}"
+    #         f"S={pyo.value(model.S[j])}, "
+    #         f"C={pyo.value(model.C[j])}, "
+    #         f"T={pyo.value(model.T[j])}"
     #     )
 
     # for i in range(M):
     #     for j in range(J):
-    #         if pyo.value(x(i, j)) > 0.5:
+    #         if pyo.value(model.x[i, j]) > 0.5:
     #             print(
     #                 f"Tarefa {j} -> Máquina {i}"
     #             )
@@ -369,12 +329,12 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         tarefas_i = [
             j
             for j in range(J)
-            if pyo.value(x(i, j)) > 0.5
+            if pyo.value(model.x[i, j]) > 0.5
         ]
 
         # Ordenar pela sequência determinada pelo instante de início
         tarefas_i.sort(
-            key=lambda j: pyo.value(S(j))
+            key=lambda j: pyo.value(model.S[j])
         )
 
         for j in tarefas_i:
