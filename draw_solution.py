@@ -143,7 +143,7 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
     cbar.ax.tick_params(labelsize=6)
 
     ax.set_xlim(0, espaco_horizontal_maximo + 1)
-    ax.set_ylim(0, espaco_vertical_usado + ALTURA * 2)
+    ax.set_ylim(0, espaco_vertical_usado)
     ax.set_aspect("equal")
 
     # Labels do eixo Y
