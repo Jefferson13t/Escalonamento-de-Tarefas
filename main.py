@@ -255,24 +255,50 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         for j in range(J):
             for k in range(j + 1, J):
 
-                # j e k estão na mesma máquina i
-                # e y = 1 => j antes de k
+                # # j e k estão na mesma máquina i
+                # # e y = 1 => j antes de k
+                # model.c.add(
+                #     model.S[k] >=
+                #     model.C[j]
+                #     - H * (1 - model.y[i, j, k])
+                #     - H * (1 - model.x[i, j])
+                #     - H * (1 - model.x[i, k])
+                # )
+
+                # # y = 0 => k antes de j
+                # model.c.add(
+                #     model.S[j] >=
+                #     model.C[k]
+                #     - H * model.y[i, j, k]
+                #     - H * (1 - model.x[i, j])
+                #     - H * (1 - model.x[i, k])
+                # )
+
                 model.c.add(
-                    model.S[k] >=
+                    model.C[k] >=
                     model.C[j]
-                    - H * (1 - model.y[i, j, k])
-                    - H * (1 - model.x[i, j])
-                    - H * (1 - model.x[i, k])
+                    + int(pt[i][j])
+                    - int(H) * (
+                        3
+                        - model.x[i, j]
+                        - model.x[i, k]
+                        - model.y[i, j, k]
+                    )
                 )
 
-                # y = 0 => k antes de j
                 model.c.add(
-                    model.S[j] >=
+                    model.C[j] >=
                     model.C[k]
-                    - H * model.y[i, j, k]
-                    - H * (1 - model.x[i, j])
-                    - H * (1 - model.x[i, k])
+                    + int(pt[i][k])
+                    - int(H) * (
+                        2
+                        - model.x[i, j]
+                        - model.x[i, k]
+                        + model.y[i, j, k]
+                    )
                 )
+
+
 
 
 
@@ -295,6 +321,8 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
             model.C[j] <= H
         )
 
+    # Time limit em segundos
+    opt.options['time_limit'] = 60 * 5
 
     # Resolver
     result = opt.solve(model, tee=True)
