@@ -94,11 +94,12 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
 
     for idx, maquina in enumerate(tarefas_por_maquina):
 
+
         espaco_usado = 0
 
         altura_maquina = idx * ALTURA
         for tarefa in maquina:
-
+            
             retangulo = Rectangle(
                 (espaco_usado, altura_maquina),  # posição
                 tarefa.w, ALTURA,    # largura e altura
@@ -196,6 +197,9 @@ def draw() -> None:
     solution_img_file = args.solution_img_file or f"{solution_file_path.split(sep='.')[0]}.png" # Fallback for passado o nome do arquivo
 
     tarefas_por_maquina, due_date = ler_solucao_mat(solution_file_path)
+
+    print(tarefas_por_maquina)
+    print(due_date)
 
     draw_sequence(tarefas_por_maquina, due_date, solution_img_file)
 

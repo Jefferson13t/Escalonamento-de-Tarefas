@@ -77,8 +77,6 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
 
     model = pyo.ConcreteModel()
 
-    # Pega o maior tempo de processamento que sera usado como limite superior par ao horizonte de escalonamento
-    H = 224 #max(sum([linha for linha in pt])) TODO: Inverter os indices
 
     # Conjuntos
     # Numero de máquinas
@@ -87,6 +85,9 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     # Numero de Tarefas
     J = len(pt[0])
 
+    # Pega o maior tempo de processamento que sera usado como limite superior par ao horizonte de escalonamento
+    H = sum(max(pt[i][j] for i in range(M)) for j in range(J))
+    
     # Due Date
     d = dd
     # Variáveis
@@ -105,7 +106,7 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         (i, j, k)
         for i in range(M)
         for j in range(J)
-        for k in range(j + 1, J)
+        for k in range(J)
     ]
 
     model.y = pyo.Var(
@@ -118,7 +119,7 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
 
     model.S = pyo.Var(
         Sj,
-        within=pyo.NonNegativeIntegers,
+        within=pyo.NonNegativeReals,
     )
 
     # C_j = instante de conclusão da tarefa j
@@ -126,7 +127,7 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
 
     model.C = pyo.Var(
         Cj,
-        within=pyo.NonNegativeIntegers,
+        within=pyo.NonNegativeReals,
     )
 
     # T_j = atraso da tarefa j
@@ -134,13 +135,13 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
 
     model.T = pyo.Var(
         Tj,
-        within=pyo.NonNegativeIntegers,
+        within=pyo.NonNegativeReals,
     )
 
 
     # Cmax = makespan
     model.Cmax = pyo.Var(
-        within=pyo.NonNegativeIntegers,
+        within=pyo.NonNegativeReals,
     )
 
     # Funções objetivo
@@ -228,15 +229,15 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
                 # Se j e k estão na máquina i, uma delas
                 # deve preceder a outra.
                 model.c.add(
-                    model.y[i, j, k] <= model.x[i, j]
+                    model.y[i, j, k] + model.y[i, k, j] <= model.x[i, j]
                 )
 
                 model.c.add(
-                    model.y[i, j, k] <= model.x[i, j]
+                    model.y[i, j, k] + model.y[i, k, j] <= model.x[i, k]
                 )
 
                 model.c.add(
-                    model.y[i, j, k] >= model.x[i, j] + model.x[i, j] - 1
+                    model.y[i, j, k] + model.y[i, k, j] >= model.x[i, j] + model.x[i, k] - 1
                 )
 
 
@@ -303,21 +304,6 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     # Resultados
     print("Cmax =", pyo.value(model.Cmax))
 
-    # for j in range(J):
-    #     print(
-    #         f"Tarefa {j}: "
-    #         f"S={pyo.value(model.S[j])}, "
-    #         f"C={pyo.value(model.C[j])}, "
-    #         f"T={pyo.value(model.T[j])}"
-    #     )
-
-    # for i in range(M):
-    #     for j in range(J):
-    #         if pyo.value(model.x[i, j]) > 0.5:
-    #             print(
-    #                 f"Tarefa {j} -> Máquina {i}"
-    #             )
-
     # Saída: tarefas por máquina
     tarefas_por_maquina = []
 
@@ -364,7 +350,6 @@ def main() -> None:
     args = parser.parse_args()
 
     input_path = args.input_file or INPUT_PATH # Fallback for passado o nome do arquivo
-
     
     mat = loadmat(input_path)
 
@@ -373,7 +358,15 @@ def main() -> None:
 
     pt = mat['PT'] # Tempo que a máquina j leva para processar a tarefa i. Indice [j][i]
     we = mat['WE'][0] # Penalidade por atraso da tarefa j. Indice [j]
-    dd = mat['DD'] # Due Date. Número escalar
+    dd = mat['DD'][0] # Due Date. Número escalar
+
+    # pt = [
+    #         [80,5,5,8,5],
+    #         [8,5,5,50,5],
+    #         [8,5,5,8,5],
+    #     ] 
+    # we = [1,100,100,1,100]
+    # dd = 5 # 
 
     # resolver 
     tarefas_por_maquina = solve(pt, we, dd)

@@ -15,7 +15,7 @@ def generate_instance(M: int, J: int, d: int, path: str) -> None:
     PT = []
 
     MAX_COST = 20
-    MAX_WEIGHT = 30
+    MAX_WEIGHT = 50
 
     for _ in range(M):
         custo_tarefas = [random.randint(1, MAX_COST) for _ in range(J)]
