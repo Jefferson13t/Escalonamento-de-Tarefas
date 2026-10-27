@@ -163,9 +163,22 @@ def draw_sequence(tarefas_por_maquina: list[list[Tarefa]], due_date: int, output
         linewidth=2,
         linestyle="--"
     )
+    ax.axvline(
+        x=espaco_horizontal_maximo,
+        color="black",
+        linewidth=2,
+    )
     ax.text(
-        due_date, -1,
+        due_date, espaco_vertical_usado + 1,
         "Due Date",
+        color="black",
+        fontsize=9,
+        ha="center",
+        va="center",
+    )
+    ax.text(
+        espaco_horizontal_maximo, espaco_vertical_usado + 1,
+        "Makespan",
         color="black",
         fontsize=9,
         ha="center",
