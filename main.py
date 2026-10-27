@@ -60,7 +60,7 @@ def salvar_solucao_mat(
     savemat(caminho, dados)
 
 
-def solve(pt, we, dd) -> list[list[Tarefa]] :
+def solve(pt, we, dd, solucao_inicial: list[list[Tarefa]] | None) -> list[list[Tarefa]] :
     """
         Instancia um solver, cria as restrições e resolve um problema
 
@@ -107,6 +107,7 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         for i in range(M)
         for j in range(J)
         for k in range(J)
+        if j != k
     ]
 
     model.y = pyo.Var(
@@ -240,8 +241,6 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
                     model.y[i, j, k] + model.y[i, k, j] >= model.x[i, j] + model.x[i, k] - 1
                 )
 
-
-
     # 6. Não sobreposição
     # Se j e k estão na mesma máquina:
 
@@ -255,30 +254,11 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
         for j in range(J):
             for k in range(j + 1, J):
 
-                # # j e k estão na mesma máquina i
-                # # e y = 1 => j antes de k
-                # model.c.add(
-                #     model.S[k] >=
-                #     model.C[j]
-                #     - H * (1 - model.y[i, j, k])
-                #     - H * (1 - model.x[i, j])
-                #     - H * (1 - model.x[i, k])
-                # )
-
-                # # y = 0 => k antes de j
-                # model.c.add(
-                #     model.S[j] >=
-                #     model.C[k]
-                #     - H * model.y[i, j, k]
-                #     - H * (1 - model.x[i, j])
-                #     - H * (1 - model.x[i, k])
-                # )
-
+                # j precede k na máquina i
                 model.c.add(
-                    model.C[k] >=
+                    model.S[k] >=
                     model.C[j]
-                    + int(pt[i][j])
-                    - int(H) * (
+                    - H * (
                         3
                         - model.x[i, j]
                         - model.x[i, k]
@@ -286,20 +266,17 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
                     )
                 )
 
+                # k precede j na máquina i
                 model.c.add(
-                    model.C[j] >=
+                    model.S[j] >=
                     model.C[k]
-                    + int(pt[i][k])
-                    - int(H) * (
+                    - H * (
                         2
                         - model.x[i, j]
                         - model.x[i, k]
                         + model.y[i, j, k]
                     )
                 )
-
-
-
 
 
     # 7. Horizonte de planejamento
@@ -321,7 +298,114 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
             model.C[j] <= H
         )
 
-    # Time limit em segundos
+
+    # ==========================================================
+    # Solução inicial (warm start)
+    # ==========================================================
+
+    if solucao_inicial is not None:
+
+        Cmax_s0 = 0
+
+        for i, tarefas in enumerate(solucao_inicial):
+            tempo_maquina = sum(
+                pt[i][int(tarefa.nome[1:]) - 1]
+                for tarefa in tarefas
+            )
+            Cmax_s0 = max(Cmax_s0, tempo_maquina)
+
+        print(f"Utilizando Solução inicial com Cmax: {Cmax_s0}")
+
+        # Inicializa todas as variáveis
+        for i in range(M):
+            for j in range(J):
+                model.x[i, j].value = 0
+
+        for i, j, k in yijk:
+            model.y[i, j, k].value = 0
+
+        # Guarda a máquina e a posição de cada tarefa
+        maquina_tarefa = {}
+        posicao_tarefa = {}
+
+        # 1. Alocação das tarefas
+        for i, tarefas in enumerate(solucao_inicial):
+
+            tempo_atual = 0
+
+            for pos, tarefa in enumerate(tarefas):
+
+                # Considerando nomes no formato T1, T2, ..., TJ
+                j = int(tarefa.nome[1:]) - 1
+
+                if not (0 <= j < J):
+                    raise ValueError(
+                        f"Tarefa inválida: {tarefa.nome}"
+                    )
+
+                if j in maquina_tarefa:
+                    raise ValueError(
+                        f"Tarefa {tarefa.nome} aparece mais de uma vez."
+                    )
+
+                maquina_tarefa[j] = i
+                posicao_tarefa[j] = pos
+
+                # Alocação
+                model.x[i, j].value = 1
+
+                # Instantes de início e conclusão
+                model.S[j].value = tempo_atual
+
+                tempo_atual += pt[i][j]
+
+                model.C[j].value = tempo_atual
+
+                # Próxima tarefa começa após a conclusão atual
+
+        # Verifica se todas as tarefas foram incluídas
+        tarefas_ausentes = set(range(J)) - set(maquina_tarefa)
+
+        if tarefas_ausentes:
+            raise ValueError(
+                f"Tarefas ausentes na solução inicial: "
+                f"{sorted(j + 1 for j in tarefas_ausentes)}"
+            )
+
+        # 2. Variáveis de sequenciamento
+        for i, tarefas in enumerate(solucao_inicial):
+
+            indices = [
+                int(tarefa.nome[1:]) - 1
+                for tarefa in tarefas
+            ]
+
+            for pos_j in range(len(indices)):
+                for pos_k in range(pos_j + 1, len(indices)):
+
+                    j = indices[pos_j]
+                    k = indices[pos_k]
+
+                    # y[i,j,k] = 1 significa j precede k
+                    if j < k:
+                        model.y[i, j, k].value = 1
+                    else:
+                        model.y[i, k, j].value = 0
+                        model.y[i, j, k].value = 1
+
+        # 3. Atrasos
+        for j in range(J):
+            model.T[j].value = max(
+                0,
+                model.C[j].value - d
+            )
+
+        # 4. Makespan
+        model.Cmax.value = max(
+            model.C[j].value for j in range(J)
+        )
+
+    # # Time limit em segundos
     opt.options['time_limit'] = 60 * 5
 
     # Resolver
@@ -366,6 +450,53 @@ def solve(pt, we, dd) -> list[list[Tarefa]] :
     return tarefas_por_maquina
 
 
+def solve_greedy(pt, we, dd) -> list[list[Tarefa]]:
+    """
+        Gera uma solução inicial do problema usando um algoritmo greedy
+
+        A solução é construída em 3 etapas
+            1) Seleciona, para cada tarefa, a maquina que a desempenha mais rapido
+            2) Ordena as tarefas em cada maquina pelo peso por atraso, desta forma as tarefas com maior custo de atraso são executadas primeiro 
+
+        Args:
+            pt: Tempo que a máquina i leva para processar a tarefa j
+            we: Penalidade por atraso da tarefa j. Indice [j]
+            dd: Due Date. Número escalar
+        Outputs:
+            tarefas_por_maquina: Matriz em que cada posição é uma lista das tarefas que serão executadas por aquela máquina
+    """
+    # Conjuntos
+    # Numero de máquinas
+    M = len(pt)
+
+    # Numero de Tarefas
+    J = len(pt[0])
+    
+    # # Due Date
+    # d = dd
+
+    tarefas_por_maquina = [[] for _ in range(M)]
+    tempo_por_maquina = [0] * M
+
+    # 1. Atribuição inicial: máquina mais rápida
+    for j in range(J):
+        i = min(range(M), key=lambda i: pt[i][j])
+
+        tarefa = Tarefa(
+            nome=f"T{j + 1}",
+            w=pt[i][j],
+            peso=we[j]
+        )
+
+        tarefas_por_maquina[i].append(tarefa)
+        tempo_por_maquina[i] += pt[i][j]
+
+    # 2. Prioriza tarefas com maior penalidade por atraso
+    for maquina in tarefas_por_maquina:
+        maquina.sort(key=lambda t: t.peso, reverse=True)
+
+    return tarefas_por_maquina
+
 def main() -> None:
     # Buscar dados de um arquivo .mat
     INPUT_DIR = 'inputs'
@@ -397,7 +528,8 @@ def main() -> None:
     # dd = 5 # 
 
     # resolver 
-    tarefas_por_maquina = solve(pt, we, dd)
+    s0 = solve_greedy(pt, we, dd)
+    tarefas_por_maquina = solve(pt, we, dd, s0)
 
     # Salvar solução em um arquivo .mat
     OUTPUT_DIR = 'outputs'
